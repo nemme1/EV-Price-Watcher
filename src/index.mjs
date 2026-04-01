@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const STATE_FILE = new URL('../state.json', import.meta.url);
+const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const STATE_FILE = process.env.STATE_PATH?.trim() || resolve(ROOT_DIR, 'state.json');
 const MONTHS = 36;
 
 const SOURCES = [
@@ -72,7 +75,7 @@ async function loadState() {
 }
 
 async function saveState(state) {
-  await mkdir(new URL('..', STATE_FILE), { recursive: true });
+  await mkdir(dirname(STATE_FILE), { recursive: true });
   await writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
 

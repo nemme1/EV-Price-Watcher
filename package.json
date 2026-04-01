@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "npm run watch:run",
     "watch:run": "node src/index.mjs"
   }
 }
