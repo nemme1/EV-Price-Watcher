@@ -23,12 +23,14 @@ function buildMetric(label, value) {
 
 function renderMetrics(data) {
   const primaryCount = data.sources.filter((source) => source.status === 'ok' && source.lines.length > 0).length;
+  const fallbackCount = data.sources.filter((source) => source.status === 'ok' && source.lines.length === 0).length;
 
   metricsRoot.innerHTML = '';
   metricsRoot.append(
     buildMetric('Källor', data.totalSources),
-    buildMetric('Visas', primaryCount),
-    buildMetric('Ändrade', data.changedCount),
+    buildMetric('Pris/ränta med träff', primaryCount),
+    buildMetric('Utan prisrad', fallbackCount),
+    buildMetric('Ändrade senaste körning', data.changedCount),
     buildMetric('Fel', data.errorCount),
     buildMetric('Intervall (min)', data.refreshMinutes)
   );
@@ -61,6 +63,7 @@ function renderSources(data) {
     link.href = source.url;
 
     node.querySelector('.stamp').textContent = `Senast läst: ${fmt(source.updatedAt)}`;
+    node.querySelector('.change-info').textContent = `Senast ändring: ${fmt(source.lastChangedAt)}. ${source.changeSummary}`;
 
     const err = node.querySelector('.error');
     if (source.status === 'error') {
@@ -103,7 +106,9 @@ function renderSources(data) {
         <a class="source-link" href="${source.url}" target="_blank" rel="noreferrer">Öppna källa</a>
       </div>
       <p class="stamp">Senast läst: ${fmt(source.updatedAt)}</p>
+      <p class="stamp">Senast ändring: ${fmt(source.lastChangedAt)}</p>
       <p class="compact-reason">${reason}</p>
+      <p class="compact-reason">${source.changeSummary}</p>
     `;
     secondaryList.append(row);
   }

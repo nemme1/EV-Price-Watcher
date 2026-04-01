@@ -48,16 +48,16 @@ const stripHtml = (html) => normalize(html
   .replace(/&nbsp;/g, ' ')
   .replace(/&amp;/g, '&'));
 
-function pickRelevantLines(text, terms) {
+function pickRelevantLines(text, terms, { requireNumbers = true, max = 8 } = {}) {
   const lines = text.split(/(?<=[.!?])\s+/);
   const out = [];
   for (const line of lines) {
     const l = line.toLowerCase();
     if (!terms.some((t) => l.includes(t.toLowerCase()))) continue;
-    if (!/(\d+[\d\s.,]*\s?(kr|sek|:-)|\d+[,.]?\d*\s?%)/i.test(line)) continue;
+    if (requireNumbers && !/(\d+[\d\s.,]*\s?(kr|sek|:-)|\d+[,.]?\d*\s?%)/i.test(line)) continue;
     const clean = normalize(line);
     if (clean.length >= 20 && clean.length <= 240) out.push(clean);
-    if (out.length >= 8) break;
+    if (out.length >= max) break;
   }
   return out;
 }
@@ -115,14 +115,29 @@ async function fetchSource(source) {
 
   const html = await response.text();
   const text = stripHtml(html);
-  const lines = pickRelevantLines(text, source.match);
-  const canonical = lines.join('\n');
+  const priceLines = pickRelevantLines(text, source.match, { requireNumbers: true, max: 8 });
+  const watchLines = priceLines.length
+    ? priceLines
+    : pickRelevantLines(text, source.match, { requireNumbers: false, max: 8 });
+
+  // Fallback fingerprint when keyword extraction returns nothing (common on JS-heavy pages).
+  const fallbackFingerprint = watchLines.length ? '' : normalize(text).slice(0, 4000);
+  const canonical = `${watchLines.join('\n')}\n${fallbackFingerprint}`;
 
   return {
     updatedAt: new Date().toISOString(),
-    lines,
-    hash: createHash('sha256').update(canonical).digest('hex')
+    lines: watchLines,
+    priceLines,
+    hasPriceSignals: priceLines.length > 0,
+    hash: createHash('sha256').update(canonical).digest('hex'),
   };
+}
+
+function summarizeChange(oldData, nowData) {
+  if (!oldData) return 'Första mätningen för källan.';
+  if (oldData.hash === nowData.hash) return 'Ingen ändring sedan förra körningen.';
+  if (nowData.hasPriceSignals) return 'Pris/ränta eller erbjudandetext har ändrats.';
+  return 'Innehållssignal ändrad (kan vara kampanj- eller regeltext).';
 }
 
 export async function runWatch() {
@@ -137,8 +152,13 @@ export async function runWatch() {
 
     try {
       const now = await fetchSource(source);
-      next.sources[source.key] = now;
       const changed = !old || old.hash !== now.hash;
+      const lastChangedAt = changed ? now.updatedAt : (old?.lastChangedAt || null);
+
+      next.sources[source.key] = {
+        ...now,
+        lastChangedAt,
+      };
 
       if (changed) changedCount += 1;
 
@@ -150,7 +170,11 @@ export async function runWatch() {
         changed,
         updatedAt: now.updatedAt,
         lines: now.lines,
+        priceLines: now.priceLines,
+        hasPriceSignals: now.hasPriceSignals,
         hasData: now.lines.length > 0,
+        lastChangedAt,
+        changeSummary: summarizeChange(old, now),
         emptyHint: source.emptyHint || null,
         tco: tcoImpact(old?.lines, now.lines),
       });
@@ -164,7 +188,11 @@ export async function runWatch() {
         changed: false,
         updatedAt: old?.updatedAt || null,
         lines: old?.lines || [],
+        priceLines: old?.priceLines || [],
+        hasPriceSignals: (old?.priceLines || []).length > 0,
         hasData: (old?.lines || []).length > 0,
+        lastChangedAt: old?.lastChangedAt || null,
+        changeSummary: 'Kunde inte verifiera ändring i denna körning.',
         emptyHint: source.emptyHint || null,
         tco: old ? tcoImpact(old.lines, old.lines) : 'TCO: ej kvantifierbar (saknar data).',
         error: err instanceof Error ? err.message : 'okänt fel',
