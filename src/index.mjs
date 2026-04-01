@@ -8,7 +8,14 @@ const STATE_FILE = process.env.STATE_PATH?.trim() || resolve(ROOT_DIR, 'state.js
 const MONTHS = 36;
 
 export const SOURCES = [
-  { key: 'tesla', name: 'Tesla Sverige', url: 'https://www.tesla.com/sv_se', match: ['lagerbil', 'ränta', 'leasing', 'kr', '%'] },
+  {
+    key: 'tesla',
+    name: 'Tesla Sverige',
+    url: 'https://www.tesla.com/sv_se',
+    type: 'auto',
+    match: ['lagerbil', 'ränta', 'leasing', 'kr', '%'],
+    signalTerms: ['ränta', 'leasing', 'kampanj', 'lager', 'pris', 'mån'],
+  },
   {
     key: 'xpeng',
     name: 'Xpeng Sverige',
@@ -19,7 +26,9 @@ export const SOURCES = [
       'https://www.xpeng.com/se/quick-delivery',
       'https://www.xpeng.com/se/campaign/p7plus-kampanj',
     ],
+    type: 'auto',
     match: ['kampanj', 'ränta', 'leasing', 'kr', '%'],
+    signalTerms: ['ränta', 'leasing', 'kampanj', 'lager', 'pris', 'mån'],
     emptyHint: 'Vissa undersidor är JS-renderade, men bevakning körs nu på flera kampanj-/finance-sidor.',
   },
   {
@@ -31,7 +40,9 @@ export const SOURCES = [
       'https://www.byd.com/se/kampanj',
       'https://www.byd.com/se/electric-cars/atto-3-evo.html',
     ],
+    type: 'auto',
     match: ['erbjudande', 'ränta', 'leasing', 'kr', '%'],
+    signalTerms: ['ränta', 'leasing', 'kampanj', 'erbjud', 'pris', 'mån'],
     emptyHint: 'BYD-sidor bevakas via flera svenska undersidor för kampanj och modellpris.',
   },
   {
@@ -39,14 +50,18 @@ export const SOURCES = [
     name: 'Kia Sverige',
     url: 'https://www.kia.com/se/kopa/erbjudanden/',
     urls: ['https://www.kia.com/se/kopa/erbjudanden/', 'https://www.kia.com/se'],
+    type: 'auto',
     match: ['erbjudande', 'kampanj', 'ränta', 'kr', '%'],
+    signalTerms: ['ränta', 'leasing', 'kampanj', 'erbjud', 'pris', 'mån'],
   },
   {
     key: 'regeringen',
     name: 'Regeringen (elbilspremie)',
     url: 'https://www.regeringen.se/',
     urls: ['https://www.regeringen.se/', 'https://www.regeringen.se/pressmeddelanden/'],
-    match: ['elbilspremie', 'elbil', 'stöd', 'bonus', 'premie', 'bidrag', 'pressmeddelande'],
+    type: 'policy',
+    match: ['elbilspremie', 'elbil', 'stöd', 'bonus', 'premie', 'bidrag'],
+    signalTerms: ['elbilspremie', 'bonus', 'malus', 'premie', 'bidrag', 'stöd', 'elbil'],
     emptyHint: 'Regeringen bevakas på startsida och pressmeddelanden för policyändringar.',
   },
   {
@@ -57,7 +72,9 @@ export const SOURCES = [
       'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Skatter-och-avgifter/bonus-malus/',
       'https://www.naturvardsverket.se/bidrag/elbilspremien/',
     ],
+    type: 'policy',
     match: ['bonus', 'malus', 'premie', 'elbil', 'bidrag', 'stöd'],
+    signalTerms: ['bonus', 'malus', 'premie', 'elbil', 'bidrag', 'stöd'],
     emptyHint: 'Bonus/malus och premie bevakas över myndighetssidor där regler kan flytta.',
   },
 ];
@@ -68,7 +85,16 @@ const stripHtml = (html) => normalize(html
   .replace(/<style[\s\S]*?<\/style>/gi, ' ')
   .replace(/<[^>]+>/g, ' ')
   .replace(/&nbsp;/g, ' ')
-  .replace(/&amp;/g, '&'));
+  .replace(/&amp;/g, '&')
+  .replace(/&aring;|&#229;|&#x00E5;/gi, 'å')
+  .replace(/&auml;|&#228;|&#x00E4;/gi, 'ä')
+  .replace(/&ouml;|&#246;|&#x00F6;/gi, 'ö')
+  .replace(/&Aring;|&#197;|&#x00C5;/gi, 'Å')
+  .replace(/&Auml;|&#196;|&#x00C4;/gi, 'Ä')
+  .replace(/&Ouml;|&#214;|&#x00D6;/gi, 'Ö')
+  .replace(/&ndash;|&#8211;/gi, '-')
+  .replace(/&quot;|&#34;/gi, '"')
+  .replace(/&#39;|&apos;/gi, "'"));
 
 function pickRelevantLines(text, terms, { requireNumbers = true, max = 8 } = {}) {
   const lines = text.split(/(?<=[.!?])\s+/);
@@ -159,12 +185,15 @@ async function fetchSource(source) {
       const html = await fetchSourceUrl(url);
       const text = stripHtml(html);
       const priceLines = pickRelevantLines(text, source.match, { requireNumbers: true, max: 8 });
-      const watchLines = priceLines.length
+      const rawWatchLines = priceLines.length
         ? priceLines
         : pickRelevantLines(text, source.match, { requireNumbers: false, max: 8 });
+      const watchLines = filterSignalLines(rawWatchLines, source.signalTerms);
 
-      // Fallback fingerprint when keyword extraction returns nothing (common on JS-heavy pages).
-      const fallbackFingerprint = watchLines.length ? '' : normalize(text).slice(0, 4000);
+      // For policy pages we keep a broad fallback fingerprint; for auto pages this causes noisy false positives.
+      const fallbackFingerprint = watchLines.length
+        ? ''
+        : (source.type === 'policy' ? normalize(text).slice(0, 4000) : '');
       const canonical = `${watchLines.join('\n')}\n${fallbackFingerprint}`;
 
       chunks.push({
@@ -199,7 +228,7 @@ async function fetchSource(source) {
 }
 
 function summarizeChange(oldData, nowData) {
-  if (!oldData) return 'Första mätningen för källan.';
+  if (!oldData) return 'Baslinje skapad.';
   if (oldData.hash === nowData.hash) return 'Ingen ändring sedan förra körningen.';
   if (nowData.hasPriceSignals) return 'Pris/ränta eller erbjudandetext har ändrats.';
   return 'Innehållssignal ändrad (kan vara kampanj- eller regeltext).';
@@ -217,8 +246,11 @@ export async function runWatch() {
 
     try {
       const now = await fetchSource(source);
-      const changed = !old || old.hash !== now.hash;
-      const lastChangedAt = changed ? now.updatedAt : (old?.lastChangedAt || null);
+      const isBaseline = !old;
+      const changed = old ? old.hash !== now.hash : false;
+      const lastChangedAt = changed
+        ? now.updatedAt
+        : (old?.lastChangedAt || (isBaseline ? now.updatedAt : null));
 
       next.sources[source.key] = {
         ...now,
@@ -232,6 +264,7 @@ export async function runWatch() {
         name: source.name,
         url: source.url,
         status: 'ok',
+        isBaseline,
         changed,
         updatedAt: now.updatedAt,
         lines: now.lines,
@@ -243,7 +276,7 @@ export async function runWatch() {
         lastChangedAt,
         changeSummary: summarizeChange(old, now),
         emptyHint: source.emptyHint || null,
-        tco: tcoImpact(old?.lines, now.lines),
+        tco: source.type === 'auto' ? tcoImpact(old?.lines, now.lines) : '',
       });
     } catch (err) {
       errorCount += 1;
@@ -252,6 +285,7 @@ export async function runWatch() {
         name: source.name,
         url: source.url,
         status: 'error',
+        isBaseline: false,
         changed: false,
         updatedAt: old?.updatedAt || null,
         lines: old?.lines || [],
@@ -263,7 +297,7 @@ export async function runWatch() {
         lastChangedAt: old?.lastChangedAt || null,
         changeSummary: 'Kunde inte verifiera ändring i denna körning.',
         emptyHint: source.emptyHint || null,
-        tco: old ? tcoImpact(old.lines, old.lines) : 'TCO: ej kvantifierbar (saknar data).',
+        tco: source.type === 'auto' ? (old ? tcoImpact(old.lines, old.lines) : 'TCO: ej kvantifierbar (saknar data).') : '',
         error: err instanceof Error ? err.message : 'okänt fel',
       });
     }
@@ -300,7 +334,7 @@ function formatConsoleSummary(result) {
       `• ${source.name}: ${source.changed ? 'ändring upptäckt' : 'ingen ändring'}`,
       `  Länk: ${source.url}`,
       `  Nytt: ${source.lines.slice(0, 3).join(' | ') || 'Inga pris/ränta-rader hittades.'}`,
-      `  ${source.tco}`,
+      ...(source.tco ? [`  ${source.tco}`] : []),
     ].join('\n'));
   }
 
@@ -318,4 +352,12 @@ if (entryPoint === fileURLToPath(import.meta.url)) {
       console.error('Watcher misslyckades:', err);
       process.exitCode = 1;
     });
+}
+
+function filterSignalLines(lines, signalTerms = []) {
+  if (!signalTerms.length) return lines;
+  return lines.filter((line) => {
+    const l = line.toLowerCase();
+    return signalTerms.some((term) => l.includes(term.toLowerCase()));
+  });
 }

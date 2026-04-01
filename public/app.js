@@ -38,6 +38,7 @@ function renderMetrics(data) {
 
 function buildBadge(source) {
   if (source.status === 'error') return { text: 'Fel', className: 'badge error' };
+  if (source.isBaseline) return { text: 'Baslinje', className: 'badge ok' };
   if (source.changed) return { text: 'Uppdaterad', className: 'badge changed' };
   return { text: 'Oförändrad', className: 'badge ok' };
 }
@@ -63,8 +64,7 @@ function renderSources(data) {
     link.href = source.url;
 
     node.querySelector('.stamp').textContent = `Senast läst: ${fmt(source.updatedAt)}`;
-    const monitoredCount = source.monitoredUrls?.length || 1;
-    node.querySelector('.change-info').textContent = `Bevakar ${monitoredCount} sida/sidor. Senast ändring: ${fmt(source.lastChangedAt)}. ${source.changeSummary}`;
+    node.querySelector('.change-info').textContent = `Senast ändring: ${fmt(source.lastChangedAt)}. ${source.changeSummary}`;
 
     const err = node.querySelector('.error');
     if (source.status === 'error') {
@@ -85,7 +85,7 @@ function renderSources(data) {
       lines.append(li);
     }
 
-    node.querySelector('.tco').textContent = source.tco;
+    node.querySelector('.tco').textContent = source.hasPriceSignals ? source.tco : '';
     grid.append(node);
   }
 
@@ -108,7 +108,6 @@ function renderSources(data) {
       </div>
       <p class="stamp">Senast läst: ${fmt(source.updatedAt)}</p>
       <p class="stamp">Senast ändring: ${fmt(source.lastChangedAt)}</p>
-      <p class="stamp">Bevakar ${source.monitoredUrls?.length || 1} sida/sidor</p>
       <p class="compact-reason">${reason}</p>
       <p class="compact-reason">${source.changeSummary}</p>
     `;
