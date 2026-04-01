@@ -250,9 +250,95 @@ function summarizeChange(oldData, nowData) {
   return 'Innehållssignal ändrad (kan vara kampanj- eller regeltext).';
 }
 
+function classifySignalType(text) {
+  const line = text.toLowerCase();
+  if (line.includes('ränta') || line.includes('%')) return 'Ränta';
+  if (line.includes('leasing') || line.includes('mån')) return 'Leasing';
+  if (line.includes('bonus') || line.includes('premie') || line.includes('malus') || line.includes('bidrag')) return 'Bonus';
+  if (line.includes('kampanj') || line.includes('erbjud')) return 'Kampanj';
+  return 'Pris';
+}
+
+function extractNumericValue(text) {
+  const match = text.match(/(\d[\d\s.]*(?:,\d+)?)(?=\s?(kr|sek|:-|%|mån))/i);
+  if (!match) return null;
+  const value = Number(match[1].replace(/\s|\./g, '').replace(',', '.'));
+  if (!Number.isFinite(value)) return null;
+  const unitMatch = text.match(/\b(kr|sek|:-|%|kr\/mån|mån)\b/i);
+  return {
+    value,
+    unit: unitMatch ? unitMatch[1].toLowerCase() : null,
+  };
+}
+
+function parseLineEntry(line) {
+  const splitIndex = line.indexOf(':');
+  if (splitIndex < 0) {
+    return {
+      model: 'Okänd modell',
+      detail: line,
+      type: classifySignalType(line),
+      numeric: extractNumericValue(line),
+    };
+  }
+
+  const model = line.slice(0, splitIndex).trim() || 'Okänd modell';
+  const detail = line.slice(splitIndex + 1).trim() || line;
+  return {
+    model,
+    detail,
+    type: classifySignalType(detail),
+    numeric: extractNumericValue(detail),
+  };
+}
+
+function buildSourceSignals(source, oldLines = [], newLines = [], timestamp) {
+  const oldEntries = oldLines.map(parseLineEntry);
+  const newEntries = newLines.map(parseLineEntry);
+
+  const oldMap = new Map(oldEntries.map((entry) => [`${entry.model}|${entry.type}`, entry]));
+  const newMap = new Map(newEntries.map((entry) => [`${entry.model}|${entry.type}`, entry]));
+  const keys = new Set([...oldMap.keys(), ...newMap.keys()]);
+
+  const signals = [];
+  for (const key of keys) {
+    const prev = oldMap.get(key);
+    const curr = newMap.get(key);
+    if (!curr) continue;
+    if (prev && prev.detail === curr.detail) continue;
+
+    const oldValue = prev?.numeric?.value ?? null;
+    const newValue = curr.numeric?.value ?? null;
+    const deltaAbs = oldValue !== null && newValue !== null ? newValue - oldValue : null;
+    const deltaPct = oldValue && newValue !== null ? ((newValue - oldValue) / oldValue) * 100 : null;
+    const direction = deltaAbs === null ? 'changed' : (deltaAbs < 0 ? 'down' : deltaAbs > 0 ? 'up' : 'flat');
+
+    signals.push({
+      id: `${source.key}-${key}-${timestamp}`,
+      brand: source.name,
+      model: curr.model,
+      type: curr.type,
+      changedText: curr.detail,
+      oldText: prev?.detail || null,
+      newText: curr.detail,
+      oldValue,
+      newValue,
+      unit: curr.numeric?.unit || prev?.numeric?.unit || null,
+      deltaAbs,
+      deltaPct,
+      direction,
+      timestamp,
+      sourceUrl: source.url,
+    });
+  }
+
+  return signals;
+}
+
 export async function runWatch() {
   const prev = await loadState();
   const next = { sources: { ...(prev.sources || {}) } };
+  const runSignals = [];
   const details = [];
   let changedCount = 0;
   let errorCount = 0;
@@ -274,6 +360,10 @@ export async function runWatch() {
       };
 
       if (changed) changedCount += 1;
+
+      if (changed) {
+        runSignals.push(...buildSourceSignals(source, old?.lines || [], now.lines || [], now.updatedAt));
+      }
 
       details.push({
         key: source.key,
@@ -319,7 +409,26 @@ export async function runWatch() {
     }
   }
 
+  const previousHistory = Array.isArray(prev.signalHistory) ? prev.signalHistory : [];
+  const signalHistory = [...runSignals, ...previousHistory].slice(0, 200);
+  next.signalHistory = signalHistory;
+
   await saveState(next);
+
+  const latestSignals = signalHistory.slice(0, 5);
+  const signalFeed = signalHistory.slice(0, 80);
+  const largestChange = signalHistory
+    .filter((signal) => typeof signal.deltaAbs === 'number')
+    .sort((a, b) => Math.abs(b.deltaAbs) - Math.abs(a.deltaAbs))[0] || null;
+
+  const brandCounter = new Map();
+  for (const signal of signalHistory.slice(0, 50)) {
+    brandCounter.set(signal.brand, (brandCounter.get(signal.brand) || 0) + 1);
+  }
+  const popularBrands = [...brandCounter.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([brand, count]) => ({ brand, count }));
 
   return {
     generatedAt: new Date().toISOString(),
@@ -327,6 +436,11 @@ export async function runWatch() {
     totalSources: SOURCES.length,
     changedCount,
     errorCount,
+    activeSignals: details.filter((s) => s.status === 'ok' && s.lines.length > 0).length,
+    latestSignals,
+    signalFeed,
+    largestChange,
+    popularBrands,
     sources: details,
   };
 }
