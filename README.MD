@@ -12,7 +12,8 @@ Fristående projekt för att bevaka ändringar hos:
 - Kör mot definierade källor.
 - Extraherar rader med pris/ränta.
 - Sparar snapshot i state.json (eller i sökväg från STATE_PATH).
-- Skickar endast kort sammanfattning när något ändrats.
+- Visar all insamlad info i en webapp.
+- Uppdateras automatiskt med angivet intervall.
 - Inkluderar direktlänk + förenklad TCO-påverkan över 36 månader.
 
 ## Lokal körning
@@ -20,26 +21,31 @@ Fristående projekt för att bevaka ändringar hos:
    cd EV-Price-Watcher
 2. Installera beroenden:
    npm install
-3. Kör bevakning:
-   npm run watch:run
+3. Starta webappen:
+   npm start
+4. Öppna:
+   http://localhost:3000
 
-## Webhook
-PowerShell:
-$env:WEBHOOK_URL="https://din-webhook"
-npm run watch:run
+## Miljövariabler
+- PORT (valfri): standard 3000
+- REFRESH_MINUTES (valfri): standard 60, minsta tillåtna 5
+- STATE_PATH (valfri): t.ex. /data/state.json i Railway med volume
 
 ## Railway
-Den här tjänsten passar som schemalagd worker i Railway.
+Den här tjänsten körs som web service i Railway.
 
 1. Skapa en Railway-service från detta repo.
 2. Ange build/start:
    - Build Command: npm install
    - Start Command: npm start
 3. Sätt miljövariabler:
-   - WEBHOOK_URL=https://din-webhook
+   - REFRESH_MINUTES=60
    - STATE_PATH=/data/state.json
 4. Montera en persistent volume på /data.
-5. Lägg till schedule, till exempel varje timme:
-   0 * * * *
+5. Öppna den publika Railway-URL:en för att se dashboarden.
 
-Utan persistent volume kommer state att nollställas mellan containers, och då kan tjänsten tolka allt som nya ändringar.
+Utan persistent volume kommer state att nollställas mellan omstarter.
+
+## Engångskörning i terminal
+Om du vill köra en manuell engångsskanning utan webapp:
+npm run watch:run

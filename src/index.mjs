@@ -3,11 +3,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_FILE = process.env.STATE_PATH?.trim() || resolve(ROOT_DIR, 'state.json');
 const MONTHS = 36;
 
-const SOURCES = [
+export const SOURCES = [
   { key: 'tesla', name: 'Tesla Sverige', url: 'https://www.tesla.com/sv_se', match: ['lagerbil', 'ränta', 'leasing', 'kr', '%'] },
   { key: 'xpeng', name: 'Xpeng Sverige', url: 'https://www.xpeng.com/se', match: ['kampanj', 'ränta', 'leasing', 'kr', '%'] },
   { key: 'byd', name: 'BYD Sverige', url: 'https://www.bydauto.se/', match: ['erbjudande', 'ränta', 'leasing', 'kr', '%'] },
@@ -101,55 +101,96 @@ async function fetchSource(source) {
   };
 }
 
-async function notify(message) {
-  console.log(message);
-  if (!process.env.WEBHOOK_URL) return;
-  await fetch(process.env.WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text: message })
-  });
-}
-
-async function run() {
+export async function runWatch() {
   const prev = await loadState();
   const next = { sources: { ...(prev.sources || {}) } };
-  const changes = [];
+  const details = [];
+  let changedCount = 0;
+  let errorCount = 0;
 
   for (const source of SOURCES) {
+    const old = prev.sources?.[source.key];
+
     try {
       const now = await fetchSource(source);
-      const old = prev.sources?.[source.key];
       next.sources[source.key] = now;
+      const changed = !old || old.hash !== now.hash;
 
-      if (!old || old.hash !== now.hash) {
-        changes.push([
-          `• ${source.name}: ändring upptäckt`,
-          `  Länk: ${source.url}`,
-          `  Nytt: ${now.lines.slice(0, 3).join(' | ') || 'Inga pris/ränta-rader hittades.'}`,
-          `  ${tcoImpact(old?.lines, now.lines)}`,
-        ].join('\n'));
-      }
+      if (changed) changedCount += 1;
+
+      details.push({
+        key: source.key,
+        name: source.name,
+        url: source.url,
+        status: 'ok',
+        changed,
+        updatedAt: now.updatedAt,
+        lines: now.lines,
+        tco: tcoImpact(old?.lines, now.lines),
+      });
     } catch (err) {
-      changes.push([
-        `• ${source.name}: kunde inte uppdatera (${err instanceof Error ? err.message : 'okänt fel'})`,
-        `  Länk: ${source.url}`,
-      ].join('\n'));
+      errorCount += 1;
+      details.push({
+        key: source.key,
+        name: source.name,
+        url: source.url,
+        status: 'error',
+        changed: false,
+        updatedAt: old?.updatedAt || null,
+        lines: old?.lines || [],
+        tco: old ? tcoImpact(old.lines, old.lines) : 'TCO: ej kvantifierbar (saknar data).',
+        error: err instanceof Error ? err.message : 'okänt fel',
+      });
     }
   }
 
   await saveState(next);
 
-  if (!changes.length) {
-    console.log('Inga ändringar sedan senaste körningen.');
-    return;
-  }
-
-  const message = [`Kort bevakningssammanfattning (${new Date().toLocaleString('sv-SE')})`, ...changes].join('\n\n');
-  await notify(message);
+  return {
+    generatedAt: new Date().toISOString(),
+    stateFile: STATE_FILE,
+    totalSources: SOURCES.length,
+    changedCount,
+    errorCount,
+    sources: details,
+  };
 }
 
-run().catch((err) => {
-  console.error('Watcher misslyckades:', err);
-  process.exitCode = 1;
-});
+function formatConsoleSummary(result) {
+  const rows = [
+    `Kort bevakningssammanfattning (${new Date().toLocaleString('sv-SE')})`,
+    `Källor: ${result.totalSources}, ändrade: ${result.changedCount}, fel: ${result.errorCount}`,
+  ];
+
+  for (const source of result.sources) {
+    if (source.status === 'error') {
+      rows.push([
+        `• ${source.name}: kunde inte uppdatera (${source.error})`,
+        `  Länk: ${source.url}`,
+      ].join('\n'));
+      continue;
+    }
+
+    rows.push([
+      `• ${source.name}: ${source.changed ? 'ändring upptäckt' : 'ingen ändring'}`,
+      `  Länk: ${source.url}`,
+      `  Nytt: ${source.lines.slice(0, 3).join(' | ') || 'Inga pris/ränta-rader hittades.'}`,
+      `  ${source.tco}`,
+    ].join('\n'));
+  }
+
+  return rows.join('\n\n');
+}
+
+const entryPoint = process.argv[1] ? resolve(process.argv[1]) : '';
+
+if (entryPoint === fileURLToPath(import.meta.url)) {
+  runWatch()
+    .then((result) => {
+      console.log(formatConsoleSummary(result));
+    })
+    .catch((err) => {
+      console.error('Watcher misslyckades:', err);
+      process.exitCode = 1;
+    });
+}

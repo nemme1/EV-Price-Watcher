@@ -1,0 +1,272 @@
+:root {
+  --bg: #f3efe4;
+  --bg-deep: #e4dac6;
+  --ink: #152238;
+  --ink-soft: #2b3d5a;
+  --card: rgba(255, 251, 243, 0.82);
+  --card-border: rgba(21, 34, 56, 0.14);
+  --ok: #1f7a53;
+  --warn: #a35e10;
+  --error: #a12525;
+  --accent: #db5f2c;
+  --shadow: 0 18px 50px rgba(24, 33, 48, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(219, 95, 44, 0.18), transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(24, 67, 110, 0.2), transparent 45%),
+    linear-gradient(140deg, var(--bg) 0%, var(--bg-deep) 100%);
+  overflow-x: hidden;
+}
+
+.glow {
+  position: fixed;
+  width: 42vmax;
+  height: 42vmax;
+  border-radius: 999px;
+  filter: blur(70px);
+  opacity: 0.3;
+  z-index: -1;
+}
+
+.glow-one {
+  background: #f7a877;
+  top: -14vmax;
+  left: -12vmax;
+}
+
+.glow-two {
+  background: #88a5cf;
+  right: -14vmax;
+  bottom: -12vmax;
+}
+
+.shell {
+  width: min(1120px, 92vw);
+  margin: 2.2rem auto 3.5rem;
+  display: grid;
+  gap: 1.4rem;
+}
+
+.hero {
+  padding: clamp(1.2rem, 2.8vw, 2rem);
+  border: 1px solid var(--card-border);
+  border-radius: 24px;
+  background: var(--card);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+  animation: rise 0.6s ease-out;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+h1 {
+  margin: 0.2rem 0 0;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1.04;
+}
+
+.subtitle {
+  max-width: 62ch;
+  color: var(--ink-soft);
+}
+
+.topline {
+  margin-top: 1.2rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: end;
+}
+
+.label {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-bottom: 0.2rem;
+}
+
+strong {
+  font-size: 1.05rem;
+}
+
+button {
+  border: none;
+  background: linear-gradient(120deg, #1d4677, #db5f2c);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 10px 24px rgba(29, 70, 119, 0.25);
+}
+
+button:hover {
+  transform: translateY(-2px);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.metric {
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.metric .metric-key {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.metric .metric-value {
+  margin: 0.3rem 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.5rem;
+}
+
+h2 {
+  margin: 0.4rem 0;
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.card {
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 1rem;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.55rem;
+  animation: rise 0.45s ease-out;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.card h3 {
+  margin: 0;
+}
+
+.badge {
+  padding: 0.22rem 0.56rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.badge.ok {
+  background: rgba(31, 122, 83, 0.16);
+  color: var(--ok);
+}
+
+.badge.changed {
+  background: rgba(163, 94, 16, 0.2);
+  color: var(--warn);
+}
+
+.badge.error {
+  background: rgba(161, 37, 37, 0.16);
+  color: var(--error);
+}
+
+.source-link {
+  color: #173f6b;
+  font-weight: 700;
+}
+
+.stamp {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--error);
+  font-weight: 700;
+}
+
+.hidden {
+  display: none;
+}
+
+.line-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #1b2c44;
+}
+
+.line-list li {
+  margin-bottom: 0.25rem;
+}
+
+.tco {
+  margin: 0;
+  font-weight: 600;
+  color: #283c5e;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 940px) {
+  .topline,
+  .metrics,
+  .source-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shell {
+    margin-top: 1.2rem;
+  }
+}

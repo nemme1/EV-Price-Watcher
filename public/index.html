@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EV Price Watcher Sverige</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="glow glow-one"></div>
+    <div class="glow glow-two"></div>
+
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Sverige</p>
+        <h1>EV Price Watcher</h1>
+        <p class="subtitle">Automatisk bevakning av kampanjer, priser och ränta hos biltillverkare och myndigheter.</p>
+        <div class="topline">
+          <div>
+            <span class="label">Senast uppdaterad</span>
+            <strong id="last-updated">-</strong>
+          </div>
+          <div>
+            <span class="label">Nästa automatisk körning</span>
+            <strong id="next-refresh">-</strong>
+          </div>
+          <button id="refresh-button" type="button">Uppdatera nu</button>
+        </div>
+      </header>
+
+      <section class="metrics" id="metrics"></section>
+
+      <section>
+        <h2>Källor</h2>
+        <div id="source-grid" class="source-grid"></div>
+      </section>
+    </main>
+
+    <template id="source-template">
+      <article class="card">
+        <div class="card-head">
+          <h3></h3>
+          <span class="badge"></span>
+        </div>
+        <a class="source-link" target="_blank" rel="noreferrer">Öppna källa</a>
+        <p class="stamp"></p>
+        <p class="error hidden"></p>
+        <ul class="line-list"></ul>
+        <p class="tco"></p>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
