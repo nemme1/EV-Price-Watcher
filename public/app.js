@@ -63,7 +63,8 @@ function renderSources(data) {
     link.href = source.url;
 
     node.querySelector('.stamp').textContent = `Senast läst: ${fmt(source.updatedAt)}`;
-    node.querySelector('.change-info').textContent = `Senast ändring: ${fmt(source.lastChangedAt)}. ${source.changeSummary}`;
+    const monitoredCount = source.monitoredUrls?.length || 1;
+    node.querySelector('.change-info').textContent = `Bevakar ${monitoredCount} sida/sidor. Senast ändring: ${fmt(source.lastChangedAt)}. ${source.changeSummary}`;
 
     const err = node.querySelector('.error');
     if (source.status === 'error') {
@@ -107,6 +108,7 @@ function renderSources(data) {
       </div>
       <p class="stamp">Senast läst: ${fmt(source.updatedAt)}</p>
       <p class="stamp">Senast ändring: ${fmt(source.lastChangedAt)}</p>
+      <p class="stamp">Bevakar ${source.monitoredUrls?.length || 1} sida/sidor</p>
       <p class="compact-reason">${reason}</p>
       <p class="compact-reason">${source.changeSummary}</p>
     `;

@@ -13,30 +13,52 @@ export const SOURCES = [
     key: 'xpeng',
     name: 'Xpeng Sverige',
     url: 'https://www.xpeng.com/se',
+    urls: [
+      'https://www.xpeng.com/se',
+      'https://www.xpeng.com/se/finance',
+      'https://www.xpeng.com/se/quick-delivery',
+      'https://www.xpeng.com/se/campaign/p7plus-kampanj',
+    ],
     match: ['kampanj', 'ränta', 'leasing', 'kr', '%'],
-    emptyHint: 'Sidan verkar vara JS-renderad och innehåller ofta ingen pristext i rå HTML.',
+    emptyHint: 'Vissa undersidor är JS-renderade, men bevakning körs nu på flera kampanj-/finance-sidor.',
   },
   {
     key: 'byd',
     name: 'BYD Sverige',
-    url: 'https://www.bydauto.se/',
+    url: 'https://www.byd.com/se',
+    urls: [
+      'https://www.byd.com/se',
+      'https://www.byd.com/se/kampanj',
+      'https://www.byd.com/se/electric-cars/atto-3-evo.html',
+    ],
     match: ['erbjudande', 'ränta', 'leasing', 'kr', '%'],
-    emptyHint: 'Källan blockerar ibland automatisk hämtning eller svarar intermittent.',
+    emptyHint: 'BYD-sidor bevakas via flera svenska undersidor för kampanj och modellpris.',
   },
-  { key: 'kia', name: 'Kia Sverige', url: 'https://www.kia.com/se', match: ['erbjudande', 'kampanj', 'ränta', 'kr', '%'] },
+  {
+    key: 'kia',
+    name: 'Kia Sverige',
+    url: 'https://www.kia.com/se/kopa/erbjudanden/',
+    urls: ['https://www.kia.com/se/kopa/erbjudanden/', 'https://www.kia.com/se'],
+    match: ['erbjudande', 'kampanj', 'ränta', 'kr', '%'],
+  },
   {
     key: 'regeringen',
     name: 'Regeringen (elbilspremie)',
     url: 'https://www.regeringen.se/',
-    match: ['elbilspremie', 'elbil', 'stöd', 'bonus'],
-    emptyHint: 'Startsidan innehåller ofta ingen tydlig pris/ränta-information i löptext.',
+    urls: ['https://www.regeringen.se/', 'https://www.regeringen.se/pressmeddelanden/'],
+    match: ['elbilspremie', 'elbil', 'stöd', 'bonus', 'premie', 'bidrag', 'pressmeddelande'],
+    emptyHint: 'Regeringen bevakas på startsida och pressmeddelanden för policyändringar.',
   },
   {
     key: 'transportstyrelsen',
     name: 'Transportstyrelsen (elbilspremie)',
     url: 'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Skatter-och-avgifter/bonus-malus/',
-    match: ['bonus', 'malus', 'premie', 'elbil'],
-    emptyHint: 'Regelsidor kan flytta URL eller sakna numeriska prisrader.',
+    urls: [
+      'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Skatter-och-avgifter/bonus-malus/',
+      'https://www.naturvardsverket.se/bidrag/elbilspremien/',
+    ],
+    match: ['bonus', 'malus', 'premie', 'elbil', 'bidrag', 'stöd'],
+    emptyHint: 'Bonus/malus och premie bevakas över myndighetssidor där regler kan flytta.',
   },
 ];
 
@@ -103,8 +125,8 @@ async function saveState(state) {
   await writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-async function fetchSource(source) {
-  const response = await fetch(source.url, {
+async function fetchSourceUrl(url) {
+  const response = await fetch(url, {
     headers: {
       'user-agent': 'ev-price-watcher-se/0.1',
       'accept-language': 'sv-SE,sv;q=0.9,en;q=0.8',
@@ -112,24 +134,67 @@ async function fetchSource(source) {
   });
 
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.text();
+}
 
-  const html = await response.text();
-  const text = stripHtml(html);
-  const priceLines = pickRelevantLines(text, source.match, { requireNumbers: true, max: 8 });
-  const watchLines = priceLines.length
-    ? priceLines
-    : pickRelevantLines(text, source.match, { requireNumbers: false, max: 8 });
+function uniqueLines(lines, max = 12) {
+  const out = [];
+  const seen = new Set();
+  for (const line of lines) {
+    if (seen.has(line)) continue;
+    seen.add(line);
+    out.push(line);
+    if (out.length >= max) break;
+  }
+  return out;
+}
 
-  // Fallback fingerprint when keyword extraction returns nothing (common on JS-heavy pages).
-  const fallbackFingerprint = watchLines.length ? '' : normalize(text).slice(0, 4000);
-  const canonical = `${watchLines.join('\n')}\n${fallbackFingerprint}`;
+async function fetchSource(source) {
+  const targetUrls = source.urls?.length ? source.urls : [source.url];
+  const chunks = [];
+  const failures = [];
+
+  for (const url of targetUrls) {
+    try {
+      const html = await fetchSourceUrl(url);
+      const text = stripHtml(html);
+      const priceLines = pickRelevantLines(text, source.match, { requireNumbers: true, max: 8 });
+      const watchLines = priceLines.length
+        ? priceLines
+        : pickRelevantLines(text, source.match, { requireNumbers: false, max: 8 });
+
+      // Fallback fingerprint when keyword extraction returns nothing (common on JS-heavy pages).
+      const fallbackFingerprint = watchLines.length ? '' : normalize(text).slice(0, 4000);
+      const canonical = `${watchLines.join('\n')}\n${fallbackFingerprint}`;
+
+      chunks.push({
+        url,
+        watchLines,
+        priceLines,
+        hasPriceSignals: priceLines.length > 0,
+        canonical,
+      });
+    } catch (err) {
+      failures.push(`${url}: ${err instanceof Error ? err.message : 'okänt fel'}`);
+    }
+  }
+
+  if (!chunks.length) {
+    throw new Error(failures.slice(0, 2).join(' | '));
+  }
+
+  const lines = uniqueLines(chunks.flatMap((c) => c.watchLines));
+  const priceLines = uniqueLines(chunks.flatMap((c) => c.priceLines));
+  const canonical = chunks.map((c) => `${c.url}\n${c.canonical}`).join('\n---\n');
 
   return {
     updatedAt: new Date().toISOString(),
-    lines: watchLines,
+    lines,
     priceLines,
     hasPriceSignals: priceLines.length > 0,
     hash: createHash('sha256').update(canonical).digest('hex'),
+    monitoredUrls: targetUrls,
+    failedUrls: failures,
   };
 }
 
@@ -171,6 +236,8 @@ export async function runWatch() {
         updatedAt: now.updatedAt,
         lines: now.lines,
         priceLines: now.priceLines,
+        monitoredUrls: now.monitoredUrls,
+        failedUrls: now.failedUrls,
         hasPriceSignals: now.hasPriceSignals,
         hasData: now.lines.length > 0,
         lastChangedAt,
@@ -189,6 +256,8 @@ export async function runWatch() {
         updatedAt: old?.updatedAt || null,
         lines: old?.lines || [],
         priceLines: old?.priceLines || [],
+        monitoredUrls: old?.monitoredUrls || (source.urls?.length ? source.urls : [source.url]),
+        failedUrls: old?.failedUrls || [],
         hasPriceSignals: (old?.priceLines || []).length > 0,
         hasData: (old?.lines || []).length > 0,
         lastChangedAt: old?.lastChangedAt || null,
