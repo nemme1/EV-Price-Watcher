@@ -15,6 +15,9 @@ export const SOURCES = [
     type: 'auto',
     match: ['lagerbil', 'ränta', 'leasing', 'kr', '%'],
     signalTerms: ['ränta', 'leasing', 'kampanj', 'lager', 'pris', 'mån'],
+    includeTerms: ['privat', 'privatleasing', 'privatavbetalning', 'ränta', 'leasing', 'mån'],
+    excludeTerms: ['företag', 'företagsleasing', 'business', 'fleet', 'operationell leasing', 'tjänstebil'],
+    modelTerms: ['Model 3', 'Model Y', 'Model S', 'Model X'],
   },
   {
     key: 'xpeng',
@@ -29,6 +32,9 @@ export const SOURCES = [
     type: 'auto',
     match: ['kampanj', 'ränta', 'leasing', 'kr', '%'],
     signalTerms: ['ränta', 'leasing', 'kampanj', 'lager', 'pris', 'mån'],
+    includeTerms: ['privat', 'privatleasing', 'ränta', 'leasing', 'mån', 'kampanj'],
+    excludeTerms: ['företag', 'företagsleasing', 'business', 'fleet', 'operationell leasing', 'tjänstebil'],
+    modelTerms: ['G6', 'G9', 'P7+', 'P7'],
     emptyHint: 'Vissa undersidor är JS-renderade, men bevakning körs nu på flera kampanj-/finance-sidor.',
   },
   {
@@ -43,6 +49,9 @@ export const SOURCES = [
     type: 'auto',
     match: ['erbjudande', 'ränta', 'leasing', 'kr', '%'],
     signalTerms: ['ränta', 'leasing', 'kampanj', 'erbjud', 'pris', 'mån'],
+    includeTerms: ['privat', 'privatleasing', 'ränta', 'leasing', 'mån', 'kampanj', 'erbjud'],
+    excludeTerms: ['företag', 'företagsleasing', 'business', 'fleet', 'operationell leasing', 'tjänstebil'],
+    modelTerms: ['ATTO 2', 'ATTO 3', 'SEAL U', 'SEALION 7', 'SEAL', 'DOLPHIN', 'HAN', 'TANG'],
     emptyHint: 'BYD-sidor bevakas via flera svenska undersidor för kampanj och modellpris.',
   },
   {
@@ -53,6 +62,9 @@ export const SOURCES = [
     type: 'auto',
     match: ['erbjudande', 'kampanj', 'ränta', 'kr', '%'],
     signalTerms: ['ränta', 'leasing', 'kampanj', 'erbjud', 'pris', 'mån'],
+    includeTerms: ['privat', 'privatleasing', 'ränta', 'leasing', 'mån', 'kampanj', 'erbjud'],
+    excludeTerms: ['företag', 'företagsleasing', 'business', 'fleet', 'operationell leasing', 'tjänstebil'],
+    modelTerms: ['Picanto', 'Stonic', 'EV2', 'EV3', 'EV4', 'EV5', 'EV6', 'EV9', 'Niro', 'Sportage', 'Sorento', 'K4'],
   },
   {
     key: 'regeringen',
@@ -184,11 +196,15 @@ async function fetchSource(source) {
     try {
       const html = await fetchSourceUrl(url);
       const text = stripHtml(html);
-      const priceLines = pickRelevantLines(text, source.match, { requireNumbers: true, max: 8 });
-      const rawWatchLines = priceLines.length
-        ? priceLines
-        : pickRelevantLines(text, source.match, { requireNumbers: false, max: 8 });
-      const watchLines = filterSignalLines(rawWatchLines, source.signalTerms);
+      const watchLines = source.type === 'auto'
+        ? extractAutoEntries(text, source)
+        : filterSignalLines(
+            pickRelevantLines(text, source.match, { requireNumbers: false, max: 8 }),
+            source.signalTerms
+          );
+      const priceLines = source.type === 'auto'
+        ? watchLines
+        : pickRelevantLines(text, source.match, { requireNumbers: true, max: 8 });
 
       // For policy pages we keep a broad fallback fingerprint; for auto pages this causes noisy false positives.
       const fallbackFingerprint = watchLines.length
@@ -276,7 +292,7 @@ export async function runWatch() {
         lastChangedAt,
         changeSummary: summarizeChange(old, now),
         emptyHint: source.emptyHint || null,
-        tco: source.type === 'auto' ? tcoImpact(old?.lines, now.lines) : '',
+        tco: '',
       });
     } catch (err) {
       errorCount += 1;
@@ -297,7 +313,7 @@ export async function runWatch() {
         lastChangedAt: old?.lastChangedAt || null,
         changeSummary: 'Kunde inte verifiera ändring i denna körning.',
         emptyHint: source.emptyHint || null,
-        tco: source.type === 'auto' ? (old ? tcoImpact(old.lines, old.lines) : 'TCO: ej kvantifierbar (saknar data).') : '',
+        tco: '',
         error: err instanceof Error ? err.message : 'okänt fel',
       });
     }
@@ -360,4 +376,43 @@ function filterSignalLines(lines, signalTerms = []) {
     const l = line.toLowerCase();
     return signalTerms.some((term) => l.includes(term.toLowerCase()));
   });
+}
+
+function includesAny(text, terms = []) {
+  if (!terms.length) return true;
+  const value = text.toLowerCase();
+  return terms.some((term) => value.includes(term.toLowerCase()));
+}
+
+function hasPriceOrRateSignal(text) {
+  return /(\d+[\d\s.,]*\s?(kr|sek|:-)|\d+[,.]?\d*\s?%|\d+[\d\s.,]*\s?mån)/i.test(text);
+}
+
+function detectModelAround(lines, index, modelTerms = []) {
+  const nearby = [lines[index - 2], lines[index - 1], lines[index], lines[index + 1], lines[index + 2]].filter(Boolean).join(' ');
+  for (const model of modelTerms) {
+    if (nearby.toLowerCase().includes(model.toLowerCase())) return model;
+  }
+  return null;
+}
+
+function extractAutoEntries(text, source) {
+  const lines = text.split(/(?<=[.!?])\s+/).map(normalize).filter((line) => line.length >= 20 && line.length <= 260);
+  const out = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!includesAny(line, source.match)) continue;
+    if (!includesAny(line, source.includeTerms)) continue;
+    if (source.excludeTerms?.length && includesAny(line, source.excludeTerms)) continue;
+    if (!hasPriceOrRateSignal(line)) continue;
+
+    const model = detectModelAround(lines, i, source.modelTerms || []);
+    if (!model) continue;
+
+    out.push(`${model}: ${line}`);
+    if (out.length >= 10) break;
+  }
+
+  return uniqueLines(out, 10);
 }
