@@ -9,11 +9,35 @@ const MONTHS = 36;
 
 export const SOURCES = [
   { key: 'tesla', name: 'Tesla Sverige', url: 'https://www.tesla.com/sv_se', match: ['lagerbil', 'ränta', 'leasing', 'kr', '%'] },
-  { key: 'xpeng', name: 'Xpeng Sverige', url: 'https://www.xpeng.com/se', match: ['kampanj', 'ränta', 'leasing', 'kr', '%'] },
-  { key: 'byd', name: 'BYD Sverige', url: 'https://www.bydauto.se/', match: ['erbjudande', 'ränta', 'leasing', 'kr', '%'] },
+  {
+    key: 'xpeng',
+    name: 'Xpeng Sverige',
+    url: 'https://www.xpeng.com/se',
+    match: ['kampanj', 'ränta', 'leasing', 'kr', '%'],
+    emptyHint: 'Sidan verkar vara JS-renderad och innehåller ofta ingen pristext i rå HTML.',
+  },
+  {
+    key: 'byd',
+    name: 'BYD Sverige',
+    url: 'https://www.bydauto.se/',
+    match: ['erbjudande', 'ränta', 'leasing', 'kr', '%'],
+    emptyHint: 'Källan blockerar ibland automatisk hämtning eller svarar intermittent.',
+  },
   { key: 'kia', name: 'Kia Sverige', url: 'https://www.kia.com/se', match: ['erbjudande', 'kampanj', 'ränta', 'kr', '%'] },
-  { key: 'regeringen', name: 'Regeringen (elbilspremie)', url: 'https://www.regeringen.se/', match: ['elbilspremie', 'elbil', 'stöd', 'bonus'] },
-  { key: 'transportstyrelsen', name: 'Transportstyrelsen (elbilspremie)', url: 'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Fordonsrelaterade-skulder-och-avgifter/bonus-malus/', match: ['bonus', 'malus', 'premie', 'elbil'] },
+  {
+    key: 'regeringen',
+    name: 'Regeringen (elbilspremie)',
+    url: 'https://www.regeringen.se/',
+    match: ['elbilspremie', 'elbil', 'stöd', 'bonus'],
+    emptyHint: 'Startsidan innehåller ofta ingen tydlig pris/ränta-information i löptext.',
+  },
+  {
+    key: 'transportstyrelsen',
+    name: 'Transportstyrelsen (elbilspremie)',
+    url: 'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Skatter-och-avgifter/bonus-malus/',
+    match: ['bonus', 'malus', 'premie', 'elbil'],
+    emptyHint: 'Regelsidor kan flytta URL eller sakna numeriska prisrader.',
+  },
 ];
 
 const normalize = (s) => s.replace(/\s+/g, ' ').trim();
@@ -126,6 +150,8 @@ export async function runWatch() {
         changed,
         updatedAt: now.updatedAt,
         lines: now.lines,
+        hasData: now.lines.length > 0,
+        emptyHint: source.emptyHint || null,
         tco: tcoImpact(old?.lines, now.lines),
       });
     } catch (err) {
@@ -138,6 +164,8 @@ export async function runWatch() {
         changed: false,
         updatedAt: old?.updatedAt || null,
         lines: old?.lines || [],
+        hasData: (old?.lines || []).length > 0,
+        emptyHint: source.emptyHint || null,
         tco: old ? tcoImpact(old.lines, old.lines) : 'TCO: ej kvantifierbar (saknar data).',
         error: err instanceof Error ? err.message : 'okänt fel',
       });
