@@ -1,3 +1,42 @@
 {
-  "sources": {}
+  "sources": {
+    "tesla": {
+      "updatedAt": "2026-04-01T18:45:19.666Z",
+      "lines": [
+        "2 Den rörliga nominella räntekampanjen på 0 % gäller för beställningar som görs och finansieringsansökningar som mottagits senast 30 juni 2026 för fordon som är schemalagda att levereras senast 30 juni 2026.",
+        "Privatavbetalning: Rörlig exempelränta 0 %, effektivränta 0,30 % vid bilpris 449 990 kr (med Tesla-bonus avdragen), 60 månader, 20 % kontantinsats samt 43 % restvärde, 60 kr administrationsavgift, 588 kr uppläggningsavgift.",
+        "Kreditgivaren har rätt att bibehålla räntan oförändrad om den ränta, som gäller för beräkningen av kreditgivarens upplåningskostnader, är eller understiger 0 %.",
+        "3 Den rörliga nominella räntekampanjen på 0 % gäller för beställningar som görs och finansieringsansökningar som mottagits senast 30 juni 2026 för fordon som är schemalagda att levereras senast 30 juni 2026.",
+        "Den rörliga räntan kan ej gå under 0 %.",
+        "Företagsleasing: Leasing beräknad på 20 % första förhöjd hyra, 60 månader, 43 % restskuld, 60 kr administrationsavgift, 695 kr uppläggningsavgift.",
+        "Rörlig exempelränta 0 %, effektivränta 0,39 %.",
+        "Leasegivaren har rätt att bibehålla leasingavgiften oförändrad om den ränta, som gäller för beräkningen av leasegivarens upplåningskostnader, är eller understiger 0 %."
+      ],
+      "hash": "5c3f09611f0893bc2e9aa016a78bd0b4997d81389785825e420e06fcf97645d6"
+    },
+    "xpeng": {
+      "updatedAt": "2026-04-01T18:45:21.143Z",
+      "lines": [],
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "kia": {
+      "updatedAt": "2026-04-01T18:45:22.005Z",
+      "lines": [
+        "ca pris från 198 300 kr (inkl.",
+        "ca pris från 266 900 kr (inkl.",
+        "ca pris från 331 900 kr (inkl.",
+        "ca pris från 431 100 kr (inkl.",
+        "ca pris från 428 900 kr (inkl.",
+        "ca pris från 476 900 kr (inkl.",
+        "ca pris från 594 900 kr (inkl.",
+        "ca pris från 553 900 kr (inkl."
+      ],
+      "hash": "4ea5b67ea0ae7be3e8e1ea8b0b8cdd8b8ef455f52d7c33ae3a5fa0e50795aa33"
+    },
+    "regeringen": {
+      "updatedAt": "2026-04-01T18:45:22.069Z",
+      "lines": [],
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
 }
