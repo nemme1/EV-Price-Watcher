@@ -257,7 +257,7 @@ h2 {
 .filters {
   margin-top: 0.8rem;
   display: grid;
-  grid-template-columns: 1.4fr repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -288,7 +288,7 @@ select:focus {
 .signal-row {
   padding: 0.8rem 0.9rem;
   display: grid;
-  grid-template-columns: 1.1fr 1.8fr 1fr 1fr 1fr;
+  grid-template-columns: 1.05fr 1.8fr 1fr 1fr 0.9fr;
   gap: 0.55rem;
   align-items: start;
 }
@@ -487,7 +487,7 @@ h3 {
   }
 
   .filters {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .signal-row {

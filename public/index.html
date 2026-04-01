@@ -16,17 +16,17 @@
     <main class="app-shell">
       <header class="hero-card" id="top">
         <p class="eyebrow">EV Price Watcher Sverige</p>
-        <h1>Fånga bästa elbilsdealen innan den försvinner</h1>
-        <p class="hero-sub">Vi bevakar priser, privatleasing, räntor och bonusändringar automatiskt. Du ser på sekunder vad som ändrats och vilken deal som är mest intressant just nu.</p>
+        <h1>Hitta Sveriges aktuella elbilskampanjer med ränta, modeller och direktlänkar</h1>
+        <p class="hero-sub">Vi bevakar märken, modeller och återförsäljare automatiskt och visar bara privatkundskampanjer med tydliga villkor för ränta, privatleasing och kampanjpris.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="#signals">Se senaste förändringarna</a>
-          <a class="btn btn-secondary" href="#how-it-works">Hur bevakningen fungerar</a>
-          <button id="refresh-button" class="btn btn-ghost" type="button">Uppdatera nu</button>
+          <a class="btn btn-primary" href="#campaigns">Se aktuella ränteerbjudanden</a>
+          <a class="btn btn-secondary" href="#campaigns">Se alla kampanjer</a>
+          <button id="refresh-button" class="btn btn-ghost" type="button">Kontrollera nya kampanjer</button>
         </div>
         <div class="trust-row">
-          <span>Uppdateras automatiskt flera gånger per dag</span>
-          <span>Bevakar tillverkare, kampanjer och myndighetsstöd</span>
-          <span>Byggd för svenska elbilsköpare</span>
+          <span>Endast privatkundserbjudanden</span>
+          <span>Direktlänkar till kampanjsidor</span>
+          <span>Automatiskt uppdaterad bevakning</span>
         </div>
       </header>
 
@@ -35,65 +35,60 @@
       <section class="overview-grid">
         <article class="panel">
           <div class="panel-head">
-            <h2>Största förändringen idag</h2>
+            <h2>Bästa räntan just nu</h2>
             <p class="panel-meta">Senast uppdaterad <span id="last-updated">-</span></p>
           </div>
-          <div id="largest-change" class="empty-state">Laddar förändringsdata...</div>
+          <div id="best-rate" class="empty-state">Laddar kampanjdata...</div>
         </article>
 
         <article class="panel">
           <div class="panel-head">
-            <h2>Senaste 5 signalerna</h2>
+            <h2>Nyligen uppdaterade kampanjer</h2>
             <p class="panel-meta">Nästa körning <span id="next-refresh">-</span></p>
           </div>
-          <ul id="latest-signals" class="compact-list"></ul>
+          <ul id="recent-campaigns" class="compact-list"></ul>
         </article>
 
         <article class="panel">
           <div class="panel-head">
-            <h2>Populära märken just nu</h2>
-            <p class="panel-meta">Baserat på senaste signaler</p>
+            <h2>Snart utgående erbjudanden</h2>
+            <p class="panel-meta">Prioritera innan de försvinner</p>
           </div>
-          <div id="popular-brands" class="brand-cloud"></div>
+          <ul id="expiring-campaigns" class="compact-list"></ul>
         </article>
       </section>
 
-      <section id="signals" class="panel panel-wide">
+      <section id="campaigns" class="panel panel-wide">
         <div class="panel-head">
-          <h2>Signalflöde: pris, ränta, leasing och bonus</h2>
-          <p class="panel-meta">Skanna vad som ändrats på 2 sekunder</p>
+          <h2>Aktuella kampanjer och ränteerbjudanden</h2>
+          <p class="panel-meta">Privatkund först • modellnivå • direktlänk</p>
         </div>
         <div class="filters" id="filters">
-          <input id="search-input" type="search" placeholder="Sök modell, märke, källa" />
+          <input id="search-input" type="search" placeholder="Sök märke eller modell" />
           <select id="brand-filter"><option value="all">Alla märken</option></select>
-          <select id="type-filter">
-            <option value="all">Alla typer</option>
-            <option value="Pris">Pris</option>
-            <option value="Ränta">Ränta</option>
-            <option value="Leasing">Leasing</option>
-            <option value="Bonus">Bonus</option>
-            <option value="Kampanj">Kampanj</option>
+          <select id="model-filter"><option value="all">Alla modeller</option></select>
+          <select id="retailer-filter"><option value="all">Alla återförsäljare</option></select>
+          <select id="offer-filter"><option value="all">Alla kampanjtyper</option></select>
+          <select id="customer-filter">
+            <option value="all">Privatköp + privatleasing</option>
+            <option value="private_purchase">Endast privatköp</option>
+            <option value="private_leasing">Endast privatleasing</option>
           </select>
-          <select id="date-filter">
-            <option value="all">Alla datum</option>
-            <option value="24h">Senaste 24h</option>
-            <option value="7d">Senaste 7 dagar</option>
-            <option value="30d">Senaste 30 dagar</option>
-          </select>
-          <select id="change-filter">
-            <option value="all">Alla förändringar</option>
-            <option value="down">Prissänkning / bättre deal</option>
-            <option value="up">Prisökning / dyrare</option>
-            <option value="rate">Ränteförändring</option>
+          <select id="quality-filter">
+            <option value="all">Alla kvaliteter</option>
+            <option value="rateOnly">Endast med ränta</option>
+            <option value="complete">Endast tydliga villkor</option>
+            <option value="validNow">Giltiga just nu</option>
           </select>
           <select id="sort-filter">
-            <option value="recent">Sortera: Senaste</option>
-            <option value="largest">Sortera: Största förändring</option>
-            <option value="relevant">Sortera: Mest relevant</option>
+            <option value="bestRate">Sortera: Lägsta ränta först</option>
+            <option value="recent">Sortera: Senaste kampanj först</option>
+            <option value="expiring">Sortera: Snart utgående först</option>
+            <option value="complete">Sortera: Mest kompletta erbjudande</option>
           </select>
         </div>
-        <div id="signals-table" class="signals-table"></div>
-        <div id="signals-empty" class="empty-state hidden">Inga nya prisförändringar just nu. Bevakningen är aktiv och visar nästa signal så fort något ändras.</div>
+        <div id="campaign-table" class="signals-table"></div>
+        <div id="campaign-empty" class="empty-state hidden">Inga nya privatkampanjer hittades just nu. Bevakningen fortsätter och nya erbjudanden visas här så fort de publiceras.</div>
       </section>
 
       <section class="panel panel-wide" id="how-it-works">
@@ -104,7 +99,7 @@
         <div class="explain-grid">
           <article>
             <h3>Vad som övervakas</h3>
-            <p>Tillverkarsidor, kampanjsidor och myndighetssidor med fokus på privatleasing, ränta, pris och elbilsstöd.</p>
+            <p>Tillverkarsidor, återförsäljare och myndighetskällor med fokus på privatkundskampanjer för elbil i Sverige.</p>
           </article>
           <article>
             <h3>Hur ofta den uppdateras</h3>
@@ -112,11 +107,11 @@
           </article>
           <article>
             <h3>Hur ändringar upptäcks</h3>
-            <p>Systemet jämför tidigare och nya signaler. När en relevant rad förändras skapas en tydlig signal med modell, typ och skillnad.</p>
+            <p>Varje källa tolkas till strukturerade kampanjposter med modell, ränta, privatleasing/privatköp, villkor och direktlänk.</p>
           </article>
           <article>
-            <h3>Fallback vid svårtolkade källor</h3>
-            <p>Vissa sidor saknar direkta prisrader. De övervakas ändå via innehållssignaler och visas separat så du behåller full transparens.</p>
+            <h3>Privatkund först</h3>
+            <p>Business-only, företagsleasing och B2B-filtreras bort i standardvyn. Otydliga träffar markeras som osäkra och prioriteras ner.</p>
           </article>
         </div>
       </section>

@@ -11,6 +11,8 @@ export const SOURCES = [
   {
     key: 'tesla',
     name: 'Tesla Sverige',
+    brand: 'Tesla',
+    retailers: ['Tesla'],
     url: 'https://www.tesla.com/sv_se',
     type: 'auto',
     match: ['lagerbil', 'ränta', 'leasing', 'kr', '%'],
@@ -22,6 +24,8 @@ export const SOURCES = [
   {
     key: 'xpeng',
     name: 'Xpeng Sverige',
+    brand: 'XPENG',
+    retailers: ['Bilia', 'XPENG Sverige'],
     url: 'https://www.xpeng.com/se',
     urls: [
       'https://www.xpeng.com/se',
@@ -40,6 +44,8 @@ export const SOURCES = [
   {
     key: 'byd',
     name: 'BYD Sverige',
+    brand: 'BYD',
+    retailers: ['Hedin Automotive', 'BYD Sverige'],
     url: 'https://www.byd.com/se',
     urls: [
       'https://www.byd.com/se',
@@ -57,6 +63,8 @@ export const SOURCES = [
   {
     key: 'kia',
     name: 'Kia Sverige',
+    brand: 'Kia',
+    retailers: ['Kia Sweden', 'Auktoriserade Kia-återförsäljare'],
     url: 'https://www.kia.com/se/kopa/erbjudanden/',
     urls: ['https://www.kia.com/se/kopa/erbjudanden/', 'https://www.kia.com/se'],
     type: 'auto',
@@ -69,6 +77,8 @@ export const SOURCES = [
   {
     key: 'regeringen',
     name: 'Regeringen (elbilspremie)',
+    brand: 'Myndighet',
+    retailers: ['Regeringen'],
     url: 'https://www.regeringen.se/',
     urls: ['https://www.regeringen.se/', 'https://www.regeringen.se/pressmeddelanden/'],
     type: 'policy',
@@ -79,6 +89,8 @@ export const SOURCES = [
   {
     key: 'transportstyrelsen',
     name: 'Transportstyrelsen (elbilspremie)',
+    brand: 'Myndighet',
+    retailers: ['Transportstyrelsen', 'Naturvårdsverket'],
     url: 'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Skatter-och-avgifter/bonus-malus/',
     urls: [
       'https://www.transportstyrelsen.se/sv/vagtrafik/Fordon/Skatter-och-avgifter/bonus-malus/',
@@ -339,6 +351,7 @@ export async function runWatch() {
   const prev = await loadState();
   const next = { sources: { ...(prev.sources || {}) } };
   const runSignals = [];
+  const campaignPool = [];
   const details = [];
   let changedCount = 0;
   let errorCount = 0;
@@ -364,6 +377,8 @@ export async function runWatch() {
       if (changed) {
         runSignals.push(...buildSourceSignals(source, old?.lines || [], now.lines || [], now.updatedAt));
       }
+
+      campaignPool.push(...buildSourceCampaigns(source, now.lines || [], now.updatedAt));
 
       details.push({
         key: source.key,
@@ -430,6 +445,24 @@ export async function runWatch() {
     .slice(0, 5)
     .map(([brand, count]) => ({ brand, count }));
 
+  const campaigns = campaignPool
+    .sort((a, b) => new Date(b.verified_at) - new Date(a.verified_at))
+    .slice(0, 240);
+
+  const bestRateOffers = campaigns
+    .filter((offer) => offer.interest_rate !== null && (offer.customer_type === 'private_purchase' || offer.customer_type === 'private_leasing'))
+    .sort((a, b) => a.interest_rate - b.interest_rate);
+
+  const bestRate = bestRateOffers[0] || null;
+  const recentCampaigns = campaigns.slice(0, 8);
+  const expiringSoon = campaigns
+    .filter((offer) => offer.valid_to)
+    .sort((a, b) => new Date(a.valid_to) - new Date(b.valid_to))
+    .slice(0, 8);
+
+  const monitoredBrands = [...new Set(campaigns.map((offer) => offer.brand))].length;
+  const activePrivateCampaigns = campaigns.filter((offer) => offer.is_private_customer_offer).length;
+
   return {
     generatedAt: new Date().toISOString(),
     stateFile: STATE_FILE,
@@ -437,6 +470,12 @@ export async function runWatch() {
     changedCount,
     errorCount,
     activeSignals: details.filter((s) => s.status === 'ok' && s.lines.length > 0).length,
+    monitoredBrands,
+    activePrivateCampaigns,
+    bestRate,
+    recentCampaigns,
+    expiringSoon,
+    campaigns,
     latestSignals,
     signalFeed,
     largestChange,
@@ -529,4 +568,122 @@ function extractAutoEntries(text, source) {
   }
 
   return uniqueLines(out, 10);
+}
+
+function parseSwedishDate(text) {
+  const months = {
+    januari: 0, februari: 1, mars: 2, april: 3, maj: 4, juni: 5,
+    juli: 6, augusti: 7, september: 8, oktober: 9, november: 10, december: 11,
+  };
+  const m = text.toLowerCase().match(/(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\s+(\d{4})/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = months[m[2]];
+  const year = Number(m[3]);
+  const date = new Date(Date.UTC(year, month, day));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function parseInterestRate(text) {
+  const match = text.match(/(\d+[,.]?\d*)\s?%\s*(?:ränta)?/i);
+  if (!match) return null;
+  const value = Number(match[1].replace(',', '.'));
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseMoney(text, markerRegex) {
+  const m = text.match(markerRegex);
+  if (!m) return null;
+  const parsed = Number(m[1].replace(/\s|\./g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function classifyCustomerType(text) {
+  const value = text.toLowerCase();
+  if (/företag|business|fleet|tjänstebil|operationell leasing/.test(value)) return 'business';
+  if (/privatleasing|privatavbetalning|privat|privatköp/.test(value)) return 'private';
+  return 'unknown';
+}
+
+function classifyOfferType(text) {
+  const value = text.toLowerCase();
+  if (value.includes('ränta')) return 'Ränteerbjudande';
+  if (value.includes('privatleasing') || value.includes('leasing')) return 'Privatleasing';
+  if (value.includes('bonus') || value.includes('premie') || value.includes('malus')) return 'Bonus';
+  if (value.includes('lager')) return 'Lagerbil';
+  return 'Tillfälligt erbjudande';
+}
+
+function confidenceScore(campaign) {
+  let score = 0.45;
+  if (campaign.interest_rate !== null) score += 0.2;
+  if (campaign.monthly_price !== null) score += 0.1;
+  if (campaign.model && campaign.model !== 'Okänd modell') score += 0.1;
+  if (campaign.valid_to) score += 0.1;
+  if (campaign.is_private_customer_offer) score += 0.1;
+  return Math.min(0.99, Number(score.toFixed(2)));
+}
+
+function buildCampaignRecord(source, entry, verifiedAt) {
+  const text = entry.detail;
+  const customerType = classifyCustomerType(text);
+  const interestRate = parseInterestRate(text);
+  const monthlyPrice = parseMoney(text, /från\s+([\d\s.,]+)\s?kr\/?mån/i) || parseMoney(text, /([\d\s.,]+)\s?kr\/?mån/i);
+  const cashDepositPercent = parseMoney(text, /([\d\s.,]+)\s?%\s*kontantinsats/i);
+  const durationMonths = parseMoney(text, /(\d{1,3})\s*mån/i);
+  const mileagePerYear = parseMoney(text, /(\d[\d\s]*)\s*mil\s*per\s*år/i);
+  const finalPayment = parseMoney(text, /rest(?:värde|skuld)\s*[:]?\s*([\d\s.,]+)\s?kr/i);
+  const validTo = parseSwedishDate(text);
+
+  const isPrivate = customerType === 'private' || source.type === 'policy';
+  const isBusiness = customerType === 'business';
+  const offerType = classifyOfferType(text);
+
+  let customerTypeNormalized = 'unknown';
+  if (source.type === 'policy') customerTypeNormalized = 'policy';
+  else if (isBusiness) customerTypeNormalized = 'business';
+  else if (offerType === 'Privatleasing') customerTypeNormalized = 'private_leasing';
+  else customerTypeNormalized = 'private_purchase';
+
+  const campaign = {
+    brand: source.brand,
+    model: entry.model,
+    retailer: source.retailers?.[0] || source.name,
+    retailer_partners: source.retailers || [source.name],
+    offer_type: offerType,
+    customer_type: customerTypeNormalized,
+    interest_rate: interestRate,
+    monthly_price: monthlyPrice,
+    cash_deposit: cashDepositPercent,
+    duration_months: durationMonths,
+    mileage_per_year: mileagePerYear,
+    final_payment: finalPayment,
+    campaign_title: `${source.brand} ${entry.model} ${offerType}`.trim(),
+    campaign_summary: text,
+    valid_from: null,
+    valid_to: validTo,
+    campaign_url: source.url,
+    source_name: source.name,
+    verified_at: verifiedAt,
+    is_private_customer_offer: source.type === 'policy' ? false : !isBusiness,
+    is_business_offer: isBusiness,
+    confidence_score: 0,
+    extracted_terms_raw: text,
+  };
+  campaign.confidence_score = confidenceScore(campaign);
+  return campaign;
+}
+
+function buildSourceCampaigns(source, lines, verifiedAt) {
+  const campaigns = lines
+    .map(parseLineEntry)
+    .map((entry) => buildCampaignRecord(source, entry, verifiedAt));
+
+  return campaigns.filter((campaign) => {
+    if (source.type === 'policy') return true;
+    if (campaign.is_business_offer && !campaign.is_private_customer_offer) return false;
+    if (!campaign.is_private_customer_offer) return false;
+    if (campaign.confidence_score < 0.55) return false;
+    return true;
+  });
 }
